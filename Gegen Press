@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Muteki Gegen Press</title>
+    <style>
+        body { text-align: center; background-color: #FFFFFF; color: #000000; font-family: 'Press Start 2P', cursive; }
+        canvas { border: 1px solid black; display: block; margin: auto; image-rendering: pixelated; }
+        h1 { font-size: 36px; }
+    </style>
+</head>
+<body>
+    <h1>Muteki Gegen Press - Durdurulması İmkansız</h1>
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let player = {
+            x: 50,
+            y: 200,
+            size: 20,
+            speed: 5
+        };
+
+        let obstacles = [];
+        let helpers = [];
+        let score = 0;
+        let gameSpeed = 2;
+        let speedChangeCounter = 0;
+        let showSplashScreen = true;
+        let splashScreenCounter = 0;
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function update() {
+            if (showSplashScreen) {
+                splashScreenCounter++;
+                if (splashScreenCounter > 150) {
+                    showSplashScreen = false;
+                }
+                return;
+            }
+
+            // Oyuncu hareketi
+            if (keys.ArrowUp && player.y > 0) player.y -= player.speed;
+            if (keys.ArrowDown && player.y < canvas.height - player.size) player.y += player.speed;
+
+            // Hız kontrolü
+            if (keys.ArrowLeft && gameSpeed > 1.0) gameSpeed -= 0.1;
+            if (keys.ArrowRight && gameSpeed < 5.0) gameSpeed += 0.1;
+
+            // Engelleri hareket ettir ve kontrol et
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                obstacles[i].x -= gameSpeed;
+
+                if (obstacles[i].isMoving) {
+                    if (obstacles[i].direction === 'down') {
+                        obstacles[i].y += 1;
+                        if (obstacles[i].y + obstacles[i].height >= canvas.height) obstacles[i].direction = 'up';
+                    } else {
+                        obstacles[i].y -= 1;
+                        if (obstacles[i].y <= 0) obstacles[i].direction = 'down';
+                    }
+                }
+
+                if (obstacles[i].x + obstacles[i].width < 0) {
+                    obstacles.splice(i, 1);
+                } else if (checkCollision(player, obstacles[i])) {
+                    gameOver();
+                    return;
+                }
+            }
+
+            // Yardımcıları hareket ettir ve kontrol et
+            for (let i = helpers.length - 1; i >= 0; i--) {
+                helpers[i].x -= gameSpeed;
+                if (helpers[i].x + helpers[i].size < 0) {
+                    helpers.splice(i, 1);
+                } else if (checkCollision(player, helpers[i])) {
+                    score += 50;
+                    helpers.splice(i, 1);
+                }
+            }
+
+            // Yeni engel ekle
+            if (Math.random() < 0.02) {
+                obstacles.push({
+                    x: canvas.width,
+                    y: Math.random() * (canvas.height - 50),
+                    width: 30,
+                    height: 50,
+                    color: '#8B0000' // Koyu bordo renk
+                });
+            }
+
+            // Bordo-mavi yan yana engel ekle
+            if (Math.random() < 0.005) {
+                let yPos = Math.random() * (canvas.height - 100);
+                obstacles.push({
+                    x: canvas.width,
+                    y: yPos,
+                    width: 30,
+                    height: 50,
+                    color: '#8B0000' // Koyu bordo renk
+                });
+                obstacles.push({
+                    x: canvas.width + 40,
+                    y: yPos,
+                    width: 30,
+                    height: 50,
+                    isMoving: true,
+                    direction: 'down',
+                    color: '#87CEEB' // Açık mavi renk
+                });
+            }
+
+            // Yardımcı ekle (daha az engelin olduğu bölgeye)
+            if (Math.random() < 0.005) {
+                let safeY = findSafeSpot();
+                helpers.push({
+                    x: canvas.width,
+                    y: safeY,
+                    size: 15
+                });
+            }
+
+            // Skoru artır
+            score++;
+        }
+
+        function draw() {
+            // Arka plan
+            ctx.fillStyle = '#FFFFFF'; // Beyaz renk
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (showSplashScreen) {
+                ctx.fillStyle = '#000000'; // Siyah renk
+                ctx.font = '40px "Press Start 2P"';
+                ctx.textAlign = 'center';
+                ctx.fillText('Gegen Press', canvas.width / 2, canvas.height / 2);
+                return;
+            }
+
+            // Oyuncu
+            ctx.fillStyle = '#000000'; // Siyah renk
+            ctx.fillRect(player.x, player.y, player.size, player.size);
+
+            // Engeller
+            obstacles.forEach(obs => {
+                ctx.fillStyle = obs.color || '#8B0000'; // Varsayılan olarak koyu bordo renk
+                ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+            });
+
+            // Yardımcılar
+            ctx.fillStyle = '#00FF00'; // Yeşil renk
+            helpers.forEach(helper => {
+                ctx.beginPath();
+                ctx.arc(helper.x + helper.size / 2, helper.y + helper.size / 2, helper.size / 2, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Skor ve Hız
+            ctx.fillStyle = '#000000'; // Siyah renk
+            ctx.font = '14px "Press Start 2P"';
+            ctx.fillText('Skor: ' + score, canvas.width - 80, 20);
+            ctx.fillText('Hız: ' + gameSpeed.toFixed(1), canvas.width - 80, 40);
+        }
+
+        function checkCollision(a, b) {
+            return a.x < b.x + (b.width || b.size) &&
+                   a.x + a.size > b.x &&
+                   a.y < b.y + (b.height || b.size) &&
+                   a.y + a.size > b.y;
+        }
+
+        function findSafeSpot() {
+            let safestY = Math.random() * (canvas.height - 50);
+            let leastObstacles = Infinity;
+
+            for (let y = 0; y < canvas.height - 50; y += 50) {
+                let obstaclesInRow = obstacles.filter(obs =>
+                    obs.y > y - 50 && obs.y < y + 50
+                ).length;
+
+                if (obstaclesInRow < leastObstacles) {
+                    leastObstacles = obstaclesInRow;
+                    safestY = y;
+                }
+            }
+
+            return safestY;
+        }
+
+        function gameOver() {
+            alert('Oyun Bitti! Skorunuz: ' + score);
+            resetGame();
+        }
+
+        function resetGame() {
+            player.y = 200;
+            obstacles = [];
+            helpers = [];
+            score = 0;
+            gameSpeed = 2;
+            speedChangeCounter = 0;
+            showSplashScreen = true;
+            splashScreenCounter = 0;
+        }
+
+        let keys = {};
+        document.addEventListener('keydown', function(e) {
+            keys[e.code] = true;
+        });
+        document.addEventListener('keyup', function(e) {
+            keys[e.code] = false;
+        });
+
+        gameLoop();
+    </script>
+</body>
+</html>
